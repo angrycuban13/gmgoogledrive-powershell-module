@@ -101,7 +101,9 @@ param(
             [void]$Params.Add('{0}=true' -f $k)
         }
     }
-    [void]$Params.Add('sendNotificationEmail={0}' -f $SendNotificationEmail)
+    if ($Type -in 'user','group') {
+        [void]$Params.Add('sendNotificationEmail={0}' -f $SendNotificationEmail)
+    }
     $Uri = '{0}{1}/permissions?supportsAllDrives=true&{2}' -f $GDriveUri, $ID, ($Params -join '&')
     Write-Verbose "URI: $Uri"
     $Body = @{

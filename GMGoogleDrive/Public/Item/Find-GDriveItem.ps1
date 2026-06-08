@@ -9,6 +9,10 @@
     Properties to return
 .PARAMETER OrderBy
     Set output order
+.PARAMETER DriveId
+    ID of the shared drive to search
+.PARAMETER Corpora
+    Specifies a collection of items to which the query applies. Prefer user or drive to allDrives for efficiency. 
 .PARAMETER AllDriveItems
     Get result from all drives (inluding shared drives)
 .PARAMETER AllResults
@@ -27,6 +31,8 @@
     Find-GDriveItem -AccessToken $access_token -Query 'name contains "shareddrivetest"' -AllResults -AllDriveItems
 .EXAMPLE
     Find-GDriveItem -AccessToken $access_token -Query 'name contains "test"' -AllResults -Property 'id', 'parents'
+.EXAMPLE
+    Find-GDriveItem -AccessToken $access_token -Query 'name = "xyz.txt" AND trashed = false' -DriveId "XXXXXXXXXXXXXXXXXXX"
 .OUTPUTS
     Json search result with items metadata as PSObject
 .NOTES
@@ -50,7 +56,7 @@ param(
     'viewersCanCopyContent','writersCanShare','permissions','folderColorRgb','originalFilename','fullFileExtension',
     'fileExtension','md5Checksum','sha256Checksum','sha1Checksum','size','quotaBytesUsed','headRevisionId','contentHints',
     'imageMediaMetadata','videoMediaMetadata','capabilities','isAppAuthorized','hasThumbnail','thumbnailVersion',
-    'modifiedByMe','trashingUser','trashedTime','teamDriveId','hasAugmentedPermissions',
+    'modifiedByMe','trashingUser','trashedTime','teamDriveId','driveId','hasAugmentedPermissions',
     'keepForever', 'published', # revisions
      IgnoreCase = $false)]
     [Alias('Metadata')]
@@ -62,6 +68,15 @@ param(
                     'sharedWithMeTime desc', 'starred desc', 'viewedByMeTime desc'
     )]
     [string[]]$OrderBy,
+    
+    [ValidatePattern(
+        '0A[0-9a-zA-Z-_]{13}9PVA',
+        ErrorMessage="'{0}' is not a valid DriveID. DriveIDs must be 19 characters long, beginning with '0A' and ending with '9PVA'. (Pattern: '{1}')"
+    )]
+    [string]$DriveId,
+    
+    [ValidateSet('user', 'domain', 'drive', 'allDrives')]
+    [string]$Corpora,
 
     [parameter(Mandatory=$false)]
     [switch]$AllDriveItems,
@@ -86,6 +101,18 @@ param(
     Write-Verbose "URI: $GDriveUri"
     $Params = New-Object System.Collections.ArrayList
     [void]$Params.Add('pageSize=' + $PageSize)
+    if ($DriveId) {
+        [void]$Params.Add('driveId={0}' -f $DriveId)
+        # To avoid the error "The includeItemsFromAllDrives parameter must be set to true when driveId is specified or corpora contains drive or allDrives."
+        $Corpora = "drive"
+    }
+    if ($Corpora) {
+        [void]$Params.Add('corpora={0}' -f $Corpora)
+        # To avoid the error "The includeItemsFromAllDrives parameter must be set to true when driveId is specified or corpora contains drive or allDrives."
+        if ($Corpora -in 'drive','allDrives') {
+            $AllDriveItems = $true
+        }
+    }
     if ($AllDriveItems) {
         [void]$Params.Add('includeItemsFromAllDrives=true')
     }
@@ -104,7 +131,6 @@ param(
         }
         [void]$Params.Add('fields=kind,nextPageToken,incompleteSearch,files({0})' -f ($Property -join ','))
     }
-    # TODO: teams driveId	string	ID of the shared drive to search.
     if ($AllResults) {
         [void]$PSBoundParameters.Remove('AllResults')
         $files = New-Object System.Collections.ArrayList
